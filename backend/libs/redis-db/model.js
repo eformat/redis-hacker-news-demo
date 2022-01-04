@@ -33,7 +33,7 @@ async function initializeIndex (idx, schema, searchClient) {
   let shouldCreateIndex = true
   if (ftInfo) {
     // if the field does not match simply drop
-    const existingIndexFields = ftInfo.fields.map(f => f.key)
+    //const existingIndexFields = ftInfo.fields.map(f => f.key)
     const newIndexFields = schema.indexFields.map(f => f.key)
     doesNotMatch = newIndexFields
       .map(f => newIndexFields.indexOf(f) !== -1)
@@ -181,9 +181,9 @@ function modelGenerator (idx, schema, clients) {
 
   model.prototype.getNextId = async function () {
     const currentId = await this.searchClient.run('get', [`${ID_INDICATOR}`]) || 1
-    const nextId = +currentId + 1
+    const nextId = currentId + 1
     await this.searchClient.run('incr', [`${ID_INDICATOR}`])
-    return +currentId
+    return nextId
   }
 
   model.prototype.getFieldValueWithDefault = function (fieldKey) {
