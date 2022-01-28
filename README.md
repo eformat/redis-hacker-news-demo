@@ -584,9 +584,11 @@ loadmodule /usr/lib/redis/modules/redisearch.so
 loadmodule /usr/lib/redis/modules/rejson.so
 EOF
 
-oc create configmap redis-config --from-file=/tmp/redis.conf
-oc set volume deployment/redis-json --add --overwrite -t configmap --configmap-name=redis-config --name=redis-config --mount-path=/usr/local/etc/redis/redis.conf --sub-path=redis.conf --overwrite --default-mode='0777' --read-only=true
-oc set volume deployment/redis-search --add --overwrite -t configmap --configmap-name=redis-config --name=redis-config --mount-path=/usr/local/etc/redis/redis.conf --sub-path=redis.conf --overwrite --default-mode='0777' --read-only=true
+oc create configmap redis-config-json --from-file=/tmp/redis.conf
+oc create configmap redis-config-search --from-file=/tmp/redis.conf
+
+oc set volume deployment/redis-json --add --overwrite -t configmap --configmap-name=redis-config-json --name=redis-config --mount-path=/usr/local/etc/redis/redis.conf --sub-path=redis.conf --overwrite --default-mode='0777' --read-only=true
+oc set volume deployment/redis-search --add --overwrite -t configmap --configmap-name=redis-config-search --name=redis-config --mount-path=/usr/local/etc/redis/redis.conf --sub-path=redis.conf --overwrite --default-mode='0777' --read-only=true
 
 oc patch deployment redis-json -p '{"spec": {"template": {"spec": {"containers": [{"name": "redis-json","command": ["redis-server","/usr/local/etc/redis/redis.conf"]}]}}}}'
 oc patch deployment redis-search -p '{"spec": {"template": {"spec": {"containers": [{"name": "redis-search","command": ["redis-server","/usr/local/etc/redis/redis.conf"]}]}}}}'
@@ -635,4 +637,30 @@ Deploy the demo app
 oc new-app quay.io/eformat/redis-hacker-news-demo:latest
 oc expose svc redis-hacker-news-demo --hostname hacker-news.$CLUSTER_DOMAIN --port 5000
 oc patch route/redis-hacker-news-demo --type=json -p '[{"op":"add", "path":"/spec/tls", "value":{"termination":"edge","insecureEdgeTerminationPolicy":"Redirect"}}]'
+```
+
+Configure the demo app
+
+```bash
+cat > /tmp/.env <<EOF
+// To send forget-password and reset password emails
+MAILGUN_API_KEY=YOUR_VALUE_HERE
+
+SEARCH_REDIS_SERVER_URL=redis://redis-json:6379
+SEARCH_REDIS_PASSWORD=password
+
+JSON_REDIS_SERVER_URL=redis://redis-search:6379
+JSON_REDIS_PASSWORD=password
+
+// Log redis commands
+LOG_LEVEL=1
+// If it's true, it will re-index redis
+REDIS_REINDEX=
+
+// Url where it's deployed to
+PRODUCTION_WEBSITE_URL=https://hacker-news.$CLUSTER_DOMAIN
+EOF
+
+oc create configmap redis-hacker-news-config --from-file=/tmp/.env
+oc set volume deployment/redis-hacker-news-demo --add --overwrite -t configmap --configmap-name=redis-hacker-news-config --name=redis-hacker-news-config --mount-path=/app/.env --sub-path=.env --overwrite --default-mode='0777' --read-only=true
 ```
