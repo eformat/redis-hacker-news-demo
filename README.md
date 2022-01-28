@@ -557,3 +557,82 @@ npm run dev
 npm run build
 npm start
 ```
+
+
+## OpenShift
+
+Create a project
+
+```bash
+oc new-project hacker-news
+```
+
+Deploy Redis instances
+
+```bash
+oc new-app --name redis-json redislabs/redismod
+oc new-app --name redis-search redislabs/redismod
+```
+
+Configure redis instances
+
+```bash
+cat > /tmp/redis.conf <<EOF
+requirepass password
+dir /data
+loadmodule /usr/lib/redis/modules/redisearch.so
+loadmodule /usr/lib/redis/modules/rejson.so
+EOF
+
+oc create configmap redis-config --from-file=/tmp/redis.conf
+oc set volume deployment/redis-json --add --overwrite -t configmap --configmap-name=redis-config --name=redis-config --mount-path=/usr/local/etc/redis/redis.conf --sub-path=redis.conf --overwrite --default-mode='0777' --read-only=true
+oc set volume deployment/redis-search --add --overwrite -t configmap --configmap-name=redis-config --name=redis-config --mount-path=/usr/local/etc/redis/redis.conf --sub-path=redis.conf --overwrite --default-mode='0777' --read-only=true
+
+oc patch deployment redis-json -p '{"spec": {"template": {"spec": {"containers": [{"name": "redis-json","command": ["redis-server","/usr/local/etc/redis/redis.conf"]}]}}}}'
+oc patch deployment redis-search -p '{"spec": {"template": {"spec": {"containers": [{"name": "redis-search","command": ["redis-server","/usr/local/etc/redis/redis.conf"]}]}}}}'
+```
+
+Configure redis persistent storage
+
+```bash
+cat <<'EOF' | oc apply -f-
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-json-data
+spec:
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: gp2
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+EOF
+
+cat <<'EOF' | oc apply -f-
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-search-data
+spec:
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: gp2
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+EOF
+
+oc set volume deployment/redis-json --add --overwrite -t persistentVolumeClaim --claim-name=redis-json-data --name=redis-json-volume-1 --mount-path=/data
+oc set volume deployment/redis-search --add --overwrite -t persistentVolumeClaim --claim-name=redis-search-data --name=redis-search-volume-1 --mount-path=/data
+```
+
+Deploy the demo app
+
+```bash
+oc new-app quay.io/eformat/redis-hacker-news-demo:latest
+oc expose svc redis-hacker-news-demo --hostname hacker-news.$CLUSTER_DOMAIN --port 5000
+oc patch route/redis-hacker-news-demo --type=json -p '[{"op":"add", "path":"/spec/tls", "value":{"termination":"edge","insecureEdgeTerminationPolicy":"Redirect"}}]'
+```

@@ -4,12 +4,15 @@ REPOSITORY ?= $(REGISTRY)/eformat/redis-hacker-news-demo
 
 IMG := $(REPOSITORY):latest
 
+clean:
+	rm -rf .next
+
 # Podman Login
 podman-login:
 	@podman login -u $(DOCKER_USER) -p $(DOCKER_PASSWORD) $(REGISTRY)
 
 # Build the oci image
-podman-build:
+podman-build: clean
 	podman build . -t ${IMG} -f Dockerfile
 
 # Push the oci image

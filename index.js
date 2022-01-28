@@ -48,6 +48,8 @@ app.prepare().then(() => {
 
   app.listen(PORT, (err) => {
     if (err) throw err;
+    console.log(`NodeEnv: ${process.env.NODE_ENV}`);
+    console.log(`API Base URL: ${process.env.PRODUCTION_WEBSITE_URL}/api`);
     console.log(`Server ready on http://localhost:${PORT}`);
   });
 })
